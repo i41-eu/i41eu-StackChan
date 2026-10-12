@@ -1,5 +1,32 @@
 # i41eu-StackChan: StackChan with Embody Mode
 
+<p align="center">
+  <img src="docs/img/embody-robot.webp" width="320" alt="The StackChan robot in 3D, swaying slowly and moving its head while its screen goes through Embody Mode's apps: the launcher, a face saying Hi, Raw data's readings, the pet, a focus timer and a build that passed, its LEDs changing with each app">
+  <br>
+  <sub>The robot in 3D (<a href="https://github.com/i41-eu/i41eu-assets">robot3d</a>) with its apps' screens: <a href="https://s.i41.eu/s3d/">turn it yourself</a></sub>
+</p>
+
+<p align="center"><b>Embody Mode: your StackChan becomes the body of many apps, local first and privacy first.</b></p>
+
+- **One click to set up:** plug the robot in over USB and open [m.i41.eu](https://m.i41.eu) in Chrome or Edge.
+- **Apps:** [Raw data](https://github.com/i41-eu/q41eu-raw), [Pet](https://github.com/i41-eu/q41eu-pet),
+  [Focus](https://github.com/i41-eu/q41eu-focus), and [Dev](https://github.com/i41-eu/q41eu-dev)
+  for your own programs and AI agents; switch between them on the robot.
+- **Your own home server:** run the apps and the [manager](https://github.com/i41-eu/i41eu-manager)
+  on a computer at home, so the camera, microphone and sensors stay on your network.
+- **Encrypted camera and microphone:** end-to-end encryption to the browsers you pair with the
+  robot's QR code; they stream only while you watch or listen, with a LIVE badge on the screen.
+- **Open source:** this firmware (MIT, as upstream), the apps and the platform behind them.
+
+**[s.i41.eu](https://s.i41.eu)**: what the robot does, a page per app ·
+**[m.i41.eu](https://m.i41.eu)**: set your robot up ·
+**[i41eu-arch](https://github.com/i41-eu/i41eu-arch)**: the architecture of the i41 home platform
+
+**A proof of concept, vibe coded:** written with AI agents and tested on a real robot at home,
+but neither the code nor its security has been reviewed by humans. Use it on your own network.
+
+## This fork
+
 M5Stack's StackChan firmware with **Embody Mode**: the first launcher app, which makes the robot a
 light client of a home server (camera, microphone, speaker, every sensor as raw data, and
 commands), switchable between servers and apps (a dashboard, a pet, a focus timer, a robot for
@@ -28,9 +55,6 @@ your own programs, a cockpit that drives a TPBot car over BLE). It is part of th
   Stack-chan was created by Shinya Ishikawa and the Stack-chan community
   ([github.com/stack-chan/stack-chan](https://github.com/stack-chan/stack-chan)); this project is
   independent of it and of M5Stack.
-
-**A proof of concept, vibe coded:** written with AI agents and tested on a real robot at home,
-but neither the code nor its security has been reviewed by humans. Use it on your own network.
 
 ---
 
