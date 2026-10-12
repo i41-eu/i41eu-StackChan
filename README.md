@@ -1,4 +1,40 @@
-# StackChan Open-Source
+# i41eu-StackChan: StackChan with Embody Mode
+
+M5Stack's StackChan firmware with **Embody Mode**: the first launcher app, which makes the robot a
+light client of a home server (camera, microphone, speaker, every sensor as raw data, and
+commands), switchable between servers and apps (a dashboard, a pet, a focus timer, a robot for
+your own programs, a cockpit that drives a TPBot car over BLE). It is part of the
+[i41](https://github.com/i41-eu/i41eu-arch) home platform, local first and privacy first: the
+[manager](https://github.com/i41-eu/i41eu-manager) sets robots up and gives them their apps,
+[Raw data](https://github.com/i41-eu/q41eu-raw) is the first app, and
+[the robot in 3D](https://github.com/i41-eu/i41eu-s3d) shows what each app does with it.
+
+- **Branches:** `embody` (ours, the default) and `main` (upstream's, as it is). `embody` is based
+  on upstream's 1b57655 ("Merge pull request #112 from m5stack/firmware-dev"). To sync:
+  `git remote add upstream https://github.com/m5stack/StackChan.git`, `git fetch upstream`, then
+  `git merge upstream/main` into `embody`.
+- **Embody Mode** lives in
+  [firmware/main/apps/app_embody_mode](firmware/main/apps/app_embody_mode/README.md): its
+  [README](firmware/main/apps/app_embody_mode/README.md),
+  [SETUP](firmware/main/apps/app_embody_mode/SETUP.md) (set a robot up: one click in Chrome at
+  [m.i41.eu](https://m.i41.eu), or your own server or build) and
+  [HARDWARE](firmware/main/apps/app_embody_mode/HARDWARE.md).
+- **Releases:** a tag `embody-v*` builds and publishes the firmware
+  (`.github/workflows/embody-firmware.yml`); the managers install the latest release. Current:
+  embody-v0.6.0.
+- **Upstream:** Embody Mode is meant to be offered to upstream as an official mode (an app of
+  the launcher), so its changes are kept apart in a few commits on top of upstream.
+- **License:** MIT, as upstream (M5Stack's copyright kept, [firmware/LICENSE](firmware/LICENSE)).
+  Stack-chan was created by Shinya Ishikawa and the Stack-chan community
+  ([github.com/stack-chan/stack-chan](https://github.com/stack-chan/stack-chan)); this project is
+  independent of it and of M5Stack.
+
+**A proof of concept, vibe coded:** written with AI agents and tested on a real robot at home,
+but neither the code nor its security has been reviewed by humans. Use it on your own network.
+
+---
+
+# Upstream: StackChan Open-Source
 
 <img src="https://m5stack-doc.oss-cn-shenzhen.aliyuncs.com/1205/K151_stack_chan_main_pictures_01.webp" width="60%">
 
