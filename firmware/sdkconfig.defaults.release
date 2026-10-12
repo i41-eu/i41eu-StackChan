@@ -1,0 +1,9 @@
+# The published Embody Mode firmware (CI and ./container.sh release): no server and no token
+# built in. A robot is set up over USB (m.i41.eu, i41eu-usb): the server, its
+# own token and Wi-Fi go into its settings; automation lets it start Embody Mode by itself.
+CONFIG_STACKCHAN_EMBODY_SERVER_URL=""
+CONFIG_STACKCHAN_EMBODY_TOKEN=""
+CONFIG_STACKCHAN_EMBODY_AUTOMATION=y
+# Reproducible: no build paths, dates or times in the image (release.sh also sets
+# SOURCE_DATE_EPOCH for sources that use __DATE__/__TIME__ themselves).
+CONFIG_APP_REPRODUCIBLE_BUILD=y

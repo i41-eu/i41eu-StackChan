@@ -15,6 +15,13 @@ def clone_or_update_repo(
 
     if ref:
         subprocess.run(["git", "-C", path, "checkout", ref], check=True)
+        # A pinned commit (40 hex digits) must be exactly what is checked out: reproducible builds
+        if len(ref) == 40 and all(c in "0123456789abcdef" for c in ref):
+            head = subprocess.run(
+                ["git", "-C", path, "rev-parse", "HEAD"], check=True, capture_output=True, text=True
+            ).stdout.strip()
+            if head != ref:
+                raise SystemExit(f"{path}: checked out {head}, expected {ref}")
 
     if with_submodules:
         subprocess.run(
@@ -36,8 +43,11 @@ def clone_or_update_repo(
         if check_result.returncode == 0:
             subprocess.run(["git", "-C", path, "apply", patch_full_path], check=True)
             print(f"Applied patch {patch_path} to {path}")
-        else:
-            print(f"Patch {patch_path} cannot be applied cleanly to {path}, skipped.")
+        elif subprocess.run(["git", "-C", path, "apply", "--reverse", "--check", patch_full_path],
+                            capture_output=True).returncode == 0:
+            print(f"Patch {patch_path} already applied to {path}")
+        else:  # never build without it: the release would differ from its source
+            raise SystemExit(f"Patch {patch_path} does not apply to {path}")
 
 
 def fetch_dependencies():

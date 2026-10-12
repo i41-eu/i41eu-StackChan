@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+# Build and flash the firmware inside Espressif's ESP-IDF container: no local ESP-IDF
+# install, and the same toolchain for everyone (pinned by digest).
+#
+#   ./container.sh build              fetch the dependencies if missing, then build
+#   ./container.sh release [VERSION]  the official image (release.sh; no server or token): build-release/dist;
+#                                     the release workflow runs exactly this (firmware at /project, as
+#                                     dependencies.lock records the vendored components)
+#   ./container.sh test               the release configuration + sdkconfig.defaults.test (taps over USB
+#                                     need no Yes and may answer the robot's questions): build-test;
+#                                     BUILD_DIR=build-test ./container.sh flash. Never released.
+#   ./container.sh flash [PORT]       flash (the CoreS3's USB serial port is found by itself)
+#   ./container.sh menuconfig         the ESP-IDF configuration menu
+#   ./container.sh shell              a shell in the container, in this directory
+#   ./container.sh idf <args…>        any idf.py command, e.g. ./container.sh idf size
+#
+# ENGINE=docker|podman picks the container engine (default: podman, else docker).
+# CONTAINER_LIMITS adds podman run flags (CPUs, memory) to every run; BUILD_JOBS caps the compilers.
+# IDF_IMAGE=… overrides the image. The build goes to build-container/, so a build with
+# a local ESP-IDF (build/) is not disturbed.
+set -euo pipefail
+
+IDF_IMAGE=${IDF_IMAGE:-docker.io/espressif/idf:v5.5.4@sha256:b9f2d6ea1c19e0c9f7959bdb74a9e3c775642f9d0f3b841937c5fa3363db892b}
+ENGINE=${ENGINE:-$(command -v podman || command -v docker || true)}
+BUILD_DIR=${BUILD_DIR:-build-container} # BUILD_DIR=build-release ./container.sh flash: the release image
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
+if [[ -z $ENGINE ]]; then
+    echo "Install podman or docker first." >&2
+    exit 1
+fi
+
+run() {
+    local args=(--rm -v "$PWD:/project:Z" -w /project -e HOME=/tmp
+        -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0='*')
+    # Rootless podman maps container root to you; docker needs --user for files you own.
+    if [[ $(basename "$ENGINE") == docker ]]; then
+        args+=(--user "$(id -u):$(id -g)")
+    fi
+    if [[ -t 0 ]]; then
+        args+=(-it)
+    fi
+    # Limits for the container (podman run flags), e.g. from a supervisor that caps the build:
+    # CONTAINER_LIMITS="--cpus=2 --memory=5g --memory-swap=5g".
+    if [[ -n ${CONTAINER_LIMITS:-} ]]; then
+        read -ra limits <<<"$CONTAINER_LIMITS"
+        args+=("${limits[@]}")
+    fi
+    if [[ -n ${BUILD_JOBS:-} ]]; then
+        # At most BUILD_JOBS compilers: idf.py has no jobs option, so a ninja in front of the real one adds -j.
+        args+=(-e BUILD_JOBS)
+        set -- bash -c 'mkdir -p /tmp/jobs && printf "#!/bin/sh\nexec %s -j%s \"\$@\"\n" "$(command -v ninja)" "$BUILD_JOBS" >/tmp/jobs/ninja &&
+            chmod +x /tmp/jobs/ninja && PATH=/tmp/jobs:$PATH exec "$@"' bash "$@"
+    fi
+    "$ENGINE" run "${args[@]}" "${EXTRA_ARGS[@]}" "$IDF_IMAGE" "$@"
+}
+EXTRA_ARGS=()
+
+need_deps() {
+    [[ -d components && -d xiaozhi-esp32 ]] || run python3 fetch_repos.py
+}
+
+case ${1:-build} in
+    build)
+        need_deps
+        run idf.py -B "$BUILD_DIR" build
+        ;;
+    flash)
+        port=${2:-$(ls /dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_*-if00 2>/dev/null | head -n 1)}
+        if [[ -z $port || ! -e $port ]]; then
+            echo "No serial port found. Plug in the robot (USB-C on the head) or pass the port." >&2
+            exit 1
+        fi
+        dev=$(readlink -f "$port")
+        # The serial device is root:dialout on the host. Rootless podman keeps your groups
+        # (keep-groups); SELinux (Fedora) would still block a container from opening a
+        # host serial device, so this one run goes without SELinux labels.
+        # Same device name inside: esptool reads the port's USB ids from sysfs by name to
+        # pick the ESP32-S3's USB-JTAG reset; under another name it resets the wrong way.
+        EXTRA_ARGS=(--device "$dev:$dev" --group-add keep-groups --security-opt label=disable)
+        if [[ $(basename "$ENGINE") == docker ]]; then
+            EXTRA_ARGS=(--device "$dev:$dev" --group-add "$(stat -c %g "$dev")")
+        fi
+        run idf.py -B "$BUILD_DIR" -p "$dev" flash
+        ;;
+    release)
+        # The official image, as the release workflow builds it (release.sh).
+        need_deps
+        EXTRA_ARGS=(-e "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)")  # git sees the repo only here
+        run ./release.sh "${2:-$(git describe --tags --match 'embody-v*' --always 2>/dev/null || echo dev)}"
+        ;;
+    test)
+        need_deps
+        run idf.py -B build-test -D STACKCHAN_RELEASE=1 -D EMBODY_VERSION="test" -D SDKCONFIG=build-test/sdkconfig \
+            -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.release;sdkconfig.defaults.test" build
+        ;;
+    menuconfig)
+        run idf.py -B "$BUILD_DIR" menuconfig
+        ;;
+    shell)
+        run bash
+        ;;
+    idf)
+        shift
+        run idf.py -B "$BUILD_DIR" "$@"
+        ;;
+    *)
+        echo "usage: $0 build | release [VERSION] | flash [PORT] | menuconfig | shell | idf <args…>" >&2
+        exit 2
+        ;;
+esac
