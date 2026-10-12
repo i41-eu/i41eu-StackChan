@@ -91,6 +91,59 @@ public:
         XPOWERS_AXP2101_CHG_CUR_1000MA,
     } xpowers_axp2101_chg_curr_t;
 
+    // Red charge LED (CHGLED, register 0x69): 0 off, 1 blink 1 Hz, 2 blink 4 Hz,
+    // 3 on (all under manual control, bits 2:1 = 10), 4 = the charger drives it (type A).
+    // Boot leaves it on (0b00110101).
+    void SetChargeLed(int mode)
+    {
+        const uint8_t v = ReadReg(0x69);
+        if (mode >= 0 && mode <= 3) {
+            WriteReg(0x69, (v & 0xC8) | 0x05 | (mode << 4));
+        } else {
+            WriteReg(0x69, (v & 0xF9) | 0x01);
+        }
+    }
+
+    void ReadStatus(hal_bridge::PmicStatus& out)
+    {
+        // ADC results are 14 bits: high 6 bits in the first register (reg 0x30 enables all channels at boot).
+        auto adc = [this](uint8_t reg) { return ((ReadReg(reg) & 0x3F) << 8) | ReadReg(reg + 1); };
+        out.status1     = ReadReg(0x00);
+        out.status2     = ReadReg(0x01);
+        out.battery_mv  = adc(0x34);
+        out.vbus_mv     = (out.status1 & 0x20) ? adc(0x38) : 0;
+        out.system_mv   = adc(0x3A);
+        out.die_temp_c  = 22.0f + (7274 - adc(0x3C)) / 20.0f;  // XPowersLib formula
+        out.battery_pct = ReadReg(0xA4);
+        out.ts_raw      = adc(0x36);
+    }
+
+    // IRQ status 2 (0x49) latches power-key presses and plug changes; writing 1s clears them.
+    // The first call also enables those IRQ sources (reg 0x41), so they latch for sure.
+    // Polled from the app loop: a busy I2C bus (a timeout) skips this poll instead of aborting
+    // (ReadReg's ESP_ERROR_CHECK restarted the robot when an app switch touched many devices).
+    uint8_t TakeEvents()
+    {
+        uint8_t v = 0;
+        if (!events_enabled_) {
+            if (TryReadRegs(0x41, &v, 1, 100) != ESP_OK) {
+                return 0;
+            }
+            WriteReg(0x41, v | 0xFC);
+            events_enabled_ = true;
+        }
+        if (TryReadRegs(0x49, &v, 1, 100) != ESP_OK) {
+            return 0;
+        }
+        v &= 0xFC;
+        if (v) {
+            WriteReg(0x49, v);
+        }
+        return v;
+    }
+
+    bool events_enabled_ = false;
+
     // Power Init
     Pmic(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : Axp2101(i2c_bus, addr)
     {
@@ -236,7 +289,7 @@ public:
 
     Ft6336(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr)
     {
-        read_buffer_ = new uint8_t[6];
+        read_buffer_ = new uint8_t[11];
     }
 
     ~Ft6336()
@@ -274,7 +327,8 @@ public:
 
     bool UpdateTouchPoint()
     {
-        auto err = TryReadRegs(0x02, read_buffer_, 6);
+        // 0x02 TD_STATUS, then per point XH (event flag 7:6), XL, YH (id 7:4), YL, weight, misc
+        auto err = TryReadRegs(0x02, read_buffer_, 11);
         if (err != ESP_OK) {
             tp_.num = 0;
             tp_.x   = -1;
@@ -294,7 +348,28 @@ public:
         tp_.num               = read_buffer_[0] & 0x0F;
         tp_.x                 = ((read_buffer_[1] & 0x0F) << 8) | read_buffer_[2];
         tp_.y                 = ((read_buffer_[3] & 0x0F) << 8) | read_buffer_[4];
+
+        hal_bridge::RawTouch raw;
+        raw.num = std::min(tp_.num, 2);
+        for (int i = 0; i < 2; i++) {
+            const uint8_t* p = read_buffer_ + 1 + i * 6;
+            raw.ev[i]        = p[0] >> 6;
+            raw.x[i]         = ((p[0] & 0x0F) << 8) | p[1];
+            raw.id[i]        = p[2] >> 4;
+            raw.y[i]         = ((p[2] & 0x0F) << 8) | p[3];
+        }
+        portENTER_CRITICAL(&raw_lock_);
+        raw_ = raw;
+        portEXIT_CRITICAL(&raw_lock_);
         return true;
+    }
+
+    hal_bridge::RawTouch GetRawTouch()
+    {
+        portENTER_CRITICAL(&raw_lock_);
+        hal_bridge::RawTouch copy = raw_;
+        portEXIT_CRITICAL(&raw_lock_);
+        return copy;
     }
 
     inline const TouchPoint_t& GetTouchPoint()
@@ -305,6 +380,8 @@ public:
 private:
     uint8_t* read_buffer_ = nullptr;
     TouchPoint_t tp_;
+    hal_bridge::RawTouch raw_;
+    portMUX_TYPE raw_lock_ = portMUX_INITIALIZER_UNLOCKED;
     int64_t last_error_log_us_     = 0;
     uint32_t consecutive_failures_ = 0;
 };
@@ -653,9 +730,58 @@ public:
     {
         return i2c_bus_;
     }
+
+    void SetChargeLed(int mode)
+    {
+        if (pmic_) {
+            pmic_->SetChargeLed(mode);
+        }
+    }
+
+    Pmic* GetPmic()
+    {
+        return pmic_;
+    }
+
+    Ft6336* GetTouch()
+    {
+        return ft6336_;
+    }
 };
 
 DECLARE_BOARD(M5StackCoreS3Board);
+
+bool hal_bridge::board_get_pmic_status(PmicStatus& out)
+{
+    auto* pmic = ((M5StackCoreS3Board&)Board::GetInstance()).GetPmic();
+    if (!pmic) {
+        return false;
+    }
+    pmic->ReadStatus(out);
+    return true;
+}
+
+bool hal_bridge::board_get_touch(RawTouch& out)
+{
+    auto* touch = ((M5StackCoreS3Board&)Board::GetInstance()).GetTouch();
+    if (!touch) {
+        return false;
+    }
+    out = touch->GetRawTouch();
+    return true;
+}
+
+uint8_t hal_bridge::board_take_pmic_events()
+{
+    auto* pmic = ((M5StackCoreS3Board&)Board::GetInstance()).GetPmic();
+    return pmic ? pmic->TakeEvents() : 0;
+}
+
+void hal_bridge::board_set_charge_led(int mode)
+{
+    auto& board = (M5StackCoreS3Board&)Board::GetInstance();
+    board.SetChargeLed(mode);
+}
 
 i2c_master_bus_handle_t hal_bridge::board_get_i2c_bus()
 {

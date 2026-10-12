@@ -21,6 +21,8 @@ using namespace smooth_ui_toolkit::lvgl_cpp;
  * @brief
  *
  */
+static lv_indev_t* s_extra_indev = nullptr;  // set_home_gesture_extra_indev
+
 class HomeGesture {
 public:
     std::function<void(void)> onGesture;
@@ -38,9 +40,11 @@ public:
         _swipe_min_dist   = 50;  // 向上滑动至少 50 像素才触发
     }
 
+    lv_indev_t* source = nullptr;  // nullptr: the touch screen; else another pointer (automation)
+
     void update()
     {
-        lv_indev_t* indev = GetHAL().lvTouchpad;
+        lv_indev_t* indev = source ? source : GetHAL().lvTouchpad;
         if (!indev) {
             return;
         }
@@ -94,6 +98,7 @@ private:
 class HomeButton {
 public:
     HomeButton(lv_obj_t* parent, uint32_t colorButton, uint32_t colorBorder)
+        : _color_button(colorButton), _color_border(colorBorder)
     {
         _bg_mask = std::make_unique<Container>(parent);
         _bg_mask->align(LV_ALIGN_CENTER, 0, 0);
@@ -138,6 +143,9 @@ public:
         _pos_y_anim.update();
         if (!_pos_y_anim.done()) {
             _btn->setPos(0, _pos_y_anim.directValue());
+            if (_extra) {
+                _extra->setPos(0, _pos_y_anim.directValue());
+            }
         } else {
             if (_hide_mask_flag) {
                 _hide_mask_flag = false;
@@ -175,6 +183,44 @@ public:
         return false;
     }
 
+    // A smaller text button right of Home (x 246..316), sliding with it.
+    void addExtra(const char* text)
+    {
+        _extra = std::make_unique<Button>(_bg_mask->get());
+        _extra->setSize(70, 73);
+        _extra->setAlign(LV_ALIGN_BOTTOM_MID);
+        _extra->setBgColor(lv_color_hex(_color_button));
+        _extra->setBorderWidth(2);
+        _extra->setBorderColor(lv_color_hex(_color_border));
+        _extra->setShadowWidth(0);
+        _extra->setRadius(18);
+        _extra->addFlag(LV_OBJ_FLAG_FLOATING);
+        lv_obj_set_style_translate_x(_extra->get(), 121, 0);
+        _extra->onClick().connect([&]() { _extra_clicked = true; });
+        _extra_label = std::make_unique<Label>(_extra->get());
+        _extra_label->setText(text);
+        _extra_label->setTextFont(&lv_font_montserrat_20);
+        _extra_label->setTextColor(lv_color_hex(_color_border));
+        _extra_label->align(LV_ALIGN_CENTER, 0, -10);
+        _extra->setPos(0, _pos_y_anim.directValue());
+    }
+
+    void setExtraText(const char* text)
+    {
+        if (_extra_label) {
+            _extra_label->setText(text);
+        }
+    }
+
+    bool isExtraClicked()
+    {
+        if (_extra_clicked) {
+            _extra_clicked = false;
+            return true;
+        }
+        return false;
+    }
+
 private:
     const int _pos_y_show = 22;
     const int _pos_y_hide = 75;
@@ -187,6 +233,10 @@ private:
     bool _is_clicked     = false;
     bool _hide_mask_flag = false;
     lv_image_dsc_t _icon_home;
+    uint32_t _color_button = 0, _color_border = 0;
+    std::unique_ptr<Button> _extra;
+    std::unique_ptr<Label> _extra_label;
+    bool _extra_clicked = false;
 };
 
 /**
@@ -196,6 +246,18 @@ private:
 class HomeIndicator {
 public:
     std::function<void(void)> onGoHome;
+    std::function<void(void)> onExtra;
+
+    void setExtra(const char* text, std::function<void(void)> onClick)
+    {
+        onExtra = onClick;
+        _home_button->addExtra(text);
+    }
+
+    void setExtraText(const char* text)
+    {
+        _home_button->setExtraText(text);
+    }
 
     void init(lv_obj_t* parent, uint32_t colorButton, uint32_t colorBorder)
     {
@@ -212,6 +274,15 @@ public:
     void update()
     {
         _home_gesture->update();
+        if (s_extra_indev && (!_extra_gesture || _extra_gesture->source != s_extra_indev)) {
+            _extra_gesture            = std::make_unique<HomeGesture>();
+            _extra_gesture->source    = s_extra_indev;
+            _extra_gesture->onGesture = [&]() { handle_home_gesture(); };
+            _extra_gesture->init();
+        }
+        if (_extra_gesture) {
+            _extra_gesture->update();
+        }
         _home_button->update();
         update_home_button_visibility();
         check_go_home();
@@ -219,6 +290,7 @@ public:
 
 private:
     std::unique_ptr<HomeGesture> _home_gesture;
+    std::unique_ptr<HomeGesture> _extra_gesture;  // the swipe from another pointer (automation)
     std::unique_ptr<HomeButton> _home_button;
     uint32_t _button_show_tick = 0;
     bool _is_first_show        = true;
@@ -244,6 +316,12 @@ private:
         if (_home_button->isClicked()) {
             if (onGoHome) {
                 onGoHome();
+            }
+        }
+        if (_home_button->isExtraClicked()) {
+            _home_button->hide();
+            if (onExtra) {
+                onExtra();
             }
         }
     }
@@ -277,9 +355,28 @@ bool is_home_indicator_created()
     return _home_indicator != nullptr;
 }
 
+void set_home_indicator_extra_button(const char* text, std::function<void(void)> onClick)
+{
+    if (_home_indicator) {
+        _home_indicator->setExtra(text, onClick);
+    }
+}
+
+void set_home_indicator_extra_text(const char* text)
+{
+    if (_home_indicator) {
+        _home_indicator->setExtraText(text);
+    }
+}
+
 void destroy_home_indicator()
 {
     _home_indicator.reset();
+}
+
+void set_home_gesture_extra_indev(lv_indev_t* indev)
+{
+    s_extra_indev = indev;
 }
 
 }  // namespace view

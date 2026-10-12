@@ -13,6 +13,7 @@
 #include <uitk/short_namespace.hpp>
 #include <smooth_lvgl.hpp>
 #include <array>
+#include <vector>
 #include <lvgl_image.h>
 #include <string_view>
 
@@ -21,6 +22,34 @@
  *
  */
 enum class HeadPetGesture { None, Press, Release, SwipeForward, SwipeBackward };
+
+// Latest BMI270 sample: acceleration in m/s^2, rotation rate in degrees/s, and
+// the BMM150 magnetic field (uT, compensated; raw counts and hall value too).
+struct ImuSample_t {
+    float accel[3]     = {};
+    float gyro[3]      = {};
+    bool mag_valid     = false;
+    float mag[3]       = {};
+    int16_t mag_raw[3] = {};
+    uint16_t mag_rhall = 0;
+};
+
+// One raw IMU sample of the 100 Hz stream: time and accel (m/s^2), gyro (deg/s), magnetic field (uT).
+struct ImuStreamSample_t {
+    uint32_t t_ms = 0;
+    float v[9]    = {};
+};
+
+// One SCS servo's feedback registers.
+struct ServoStatus_t {
+    int position    = 0;  // raw 0..1000
+    int load        = 0;  // -1000..1000, per mille of the drive voltage, signed by direction
+    float voltage   = 0;  // V
+    int temperature = 0;  // degrees C
+    bool moving     = false;
+    int speed       = 0;  // raw, signed by direction
+    int current     = 0;  // raw, signed (units not documented for the SCS0009)
+};
 
 /**
  * @brief
@@ -230,14 +259,24 @@ public:
 
     /* --------------------------------- HeadPet -------------------------------- */
     uitk::Signal<HeadPetGesture> onHeadPetGesture;
+    // Current intensity of the three touch zones, 0 (none) to 3 (high), in the
+    // order a forward swipe crosses them. Updated every 50 ms; any thread.
+    std::array<uint8_t, 3> getHeadTouchZones();
 
     /* ----------------------------------- RGB ---------------------------------- */
     void setRgbColor(uint8_t index, uint8_t r, uint8_t g, uint8_t b);
+    // The colour last set on an LED (0xRRGGBB), e.g. to show it on the screen.
+    uint32_t getRgbColor(uint8_t index);
     void showRgbColor(uint8_t r, uint8_t g, uint8_t b);
     void refreshRgb();
 
     /* ---------------------------------- Power --------------------------------- */
     void setServoPowerEnabled(bool enabled);
+
+    /* ---------------------------------- Servo --------------------------------- */
+    // Reads a servo's feedback registers (id 1 yaw, 2 pitch) in one bus round trip.
+    // The servo bus has no lock: call it only from the thread that drives the servos.
+    bool readServoStatus(int id, ServoStatus_t& out);
 
     /* -------------------------------- Websocket ------------------------------- */
     uitk::Signal<std::string_view> onWsMotionData;
@@ -255,9 +294,17 @@ public:
 
     /* ----------------------------------- IMU ---------------------------------- */
     uitk::Signal<ImuMotionEvent> onImuMotionEvent;
+    // The latest sample (10 Hz). False until the IMU has delivered one. Any thread.
+    bool getImuSample(ImuSample_t& out);
+    // Streaming: the IMU task samples at 100 Hz and buffers every sample (at most ~2 s)
+    // until takeImuStream() collects them. Off by default. Any thread.
+    void setImuStreaming(bool on);
+    void takeImuStream(std::vector<ImuStreamSample_t>& out);
 
     /* ---------------------------------- Time ---------------------------------- */
     void syncRtcTimeToSystem();
+    // The RTC's own time as Unix seconds (it keeps UTC). False if it can't be read.
+    bool getRtcUnix(int64_t& out);
     void syncSystemTimeToRtc();
     void setTimezone(std::string_view tz);
     std::string getTimezone();

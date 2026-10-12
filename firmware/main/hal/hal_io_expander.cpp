@@ -66,12 +66,22 @@ void Hal::setServoPowerEnabled(bool enabled)
     _io_expander->digitalWrite(0, enabled ? true : false);
 }
 
+static uint32_t _rgb_colors[16];  // the colour last set per LED (getRgbColor)
+
 void Hal::setRgbColor(uint8_t index, uint8_t r, uint8_t g, uint8_t b)
 {
     if (!_io_expander) {
         return;
     }
+    if (index < 16) {
+        _rgb_colors[index] = ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+    }
     _io_expander->setLedColor(index, r, g, b);
+}
+
+uint32_t Hal::getRgbColor(uint8_t index)
+{
+    return index < 16 ? _rgb_colors[index] : 0;
 }
 
 void Hal::refreshRgb()
