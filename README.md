@@ -1,7 +1,7 @@
 # i41eu-StackChan: StackChan with Embody Mode
 
 <p align="center">
-  <img src="docs/img/embody-robot.webp" width="320" alt="The StackChan robot in 3D, swaying slowly and moving its head while its screen goes through Embody Mode's apps: the launcher, a face saying Hi, Raw data's readings, the pet, a focus timer and a build that passed, its LEDs changing with each app">
+  <img src="docs/img/embody-robot.gif" alt="The StackChan robot in 3D, swaying slowly and moving its head while its screen goes through Embody Mode's apps: the launcher, a face saying Hi, Raw data's readings, the pet, a focus timer and a build that passed, its LEDs changing with each app">
   <br>
   <sub>The robot in 3D (<a href="https://github.com/i41-eu/i41eu-assets">robot3d</a>) with its apps' screens: <a href="https://s.i41.eu/s3d/">turn it yourself</a></sub>
 </p>
