@@ -24,7 +24,7 @@ toolchain/rebuild.sh firmware ubuntu dev-1234abcd path/to/SHA256SUMS   # compare
 - Work files go to `WORK` (default `~/.cache/stackchan-toolchain`): the checkouts, the source
   tarballs (shared by both builds), Guix's store (about 3 GB).
 
-**Result,** for commit `dc0a017` (before embody-v0.1.0): the firmware built with either of
+**Result,** for a commit before embody-v0.1.0 (in the earlier fork): the firmware built with either of
 our compilers is byte-identical to GitHub Actions' build with Espressif's compiler, all seven
 files. Our two compilers also give identical target libraries (195 files). Espressif's own
 libraries differ from ours in 21 complex-maths functions of `libm.a` (register choices; not linked

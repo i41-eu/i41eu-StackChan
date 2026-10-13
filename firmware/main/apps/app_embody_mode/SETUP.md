@@ -13,7 +13,7 @@ There are three ways, from one click to your own firmware:
 | Way | For | What it takes |
 |---|---|---|
 | [A. One click on m.i41.eu](#a-one-click-on-mi41eu) | everyone | Chrome or Edge, a GitHub or Google account |
-| [B. Your own server](#b-your-own-server) | your home network, private things | Go 1.26 on a computer at home, Chrome or Edge |
+| [B. Your own server](#b-your-own-servers) | your home network, private things | Go 1.26 on a computer at home, Chrome or Edge |
 | [C. Build the firmware yourself](#c-build-the-firmware-yourself) | developers, changes to the firmware | podman or docker (or ESP-IDF 5.5.4) |
 
 All of them need an **M5Stack Stackchan** robot with its CoreS3 (ESP32-S3) and a **USB-C data

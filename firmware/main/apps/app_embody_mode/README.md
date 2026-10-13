@@ -2,7 +2,7 @@
 
 To set up a robot, see [SETUP.md](SETUP.md). To check a release before you trust it: [Verify a release](#verify-a-release).
 
-Launcher app (first icon) that lets you control this Stackchan from a browser through [q41eu-raw](https://github.com/i41-eu/q41eu-raw). The protocol is the [device wire protocol](https://github.com/i41-eu/i41eu-arch/blob/main/docs/wire-protocol.md) of [i41eu-arch](https://github.com/i41-eu/i41eu-arch); the q41eu-raw readme lists the robot's commands, and the trust design is [design.md](https://github.com/i41-eu/i41eu-arch/blob/main/docs/implementations/stackchan-trust.md) in i41eu-arch.
+Launcher app (first icon) that lets you control this Stackchan from a browser through [q41eu-raw](https://github.com/i41-eu/q41eu-raw). The protocol is the [device wire protocol](https://github.com/i41-eu/i41eu-arch/blob/main/docs/wire-protocol.md) of [i41eu-arch](https://github.com/i41-eu/i41eu-arch); the q41eu-raw readme lists the robot's commands, and the trust design is [stackchan-trust.md](https://github.com/i41-eu/i41eu-arch/blob/main/docs/implementations/stackchan-trust.md) in i41eu-arch.
 
 > **A proof of concept, vibe coded.** Written with AI agents and tested on real hardware at
 > home, but neither the code nor its security has been reviewed by humans. Use it on your
@@ -245,7 +245,7 @@ After adding sources or Kconfig options, run `idf.py reconfigure` before `idf.py
 ## Notes
 
 - **Launcher order:** this app is launcher index 0 and AI.AGENT is 1. Other apps return via hardcoded `requestWarmReboot(<index>)` values, which are +1 compared with upstream.
-- **No firmware from a server:** xiaozhi's OTA check is off (`CONFIG_STACKCHAN_XIAOZHI_OTA_CHECK`); see the trust design, [design.md](https://github.com/i41-eu/i41eu-arch/blob/main/docs/implementations/stackchan-trust.md).
+- **No firmware from a server:** xiaozhi's OTA check is off (`CONFIG_STACKCHAN_XIAOZHI_OTA_CHECK`); see the trust design, [stackchan-trust.md](https://github.com/i41-eu/i41eu-arch/blob/main/docs/implementations/stackchan-trust.md).
 - **Send limit:** xiaozhi's `WebSocket::Send` rejects messages over 65,535 bytes. That limits camera frames, not pictures, which the robot only receives.
 - **A dead link never stops the app:** sends time out (the vendored esp-ml307, `vendor/esp-ml307/EMBODY.md`); a failed send drops the connection and the client reconnects with its backoff, while the app loop, the screen and the inputs keep going.
 - **Internal RAM is the scarce memory**, not PSRAM: Wi-Fi, BLE (the car), the audio codec's I2S DMA (~18 KB from the first sound on) and TLS's AES DMA all need it. LVGL allocates in PSRAM (`main/hal/utils/lv_mem_psram`, `CONFIG_LV_USE_CUSTOM_MALLOC`); before, its objects took 22 KB of internal RAM and, with the car on, the robot lost its connection after its first sound (TLS could not allocate). Measured with the car on: ~56 KB free, ~35 KB after the first sound.
