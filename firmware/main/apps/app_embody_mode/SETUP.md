@@ -206,16 +206,19 @@ latest official Embody Mode** unticked, or `i41eu-usb`.
 
 Pushing an `embody-v*` tag makes GitHub build the release: `sdkconfig.defaults` plus
 `sdkconfig.defaults.release` (no server, no token, automation on), never
-`sdkconfig.defaults.local`. It attaches the parts, `manifest.json` with their SHA-256 and one
-merged image to the release. A manager's page installs the latest GitHub release by default
+`sdkconfig.defaults.local`. It attaches the parts, `manifest.json` with their SHA-256, one
+merged image and `SHA256SUMS` to the release. A manager's page installs the latest GitHub release by default
 (`-firmware-release latest`); `-firmware-dir` serves those files from a directory instead.
 `./container.sh release` runs the same script, `firmware/release.sh`, locally (into `firmware/build-release/dist`), to
 check it before tagging.
 
-The release is reproducible: CI, a laptop and a cloud rebuild give the same bytes. The signed
-hashes are in [mj41cz-approved](https://gitlab.com/mj41cz/mj41cz-approved), the rebuild logs in
-[mj41cz-rebuilds](https://gitlab.com/mj41cz/mj41cz-rebuilds); details in the
-[device setup design](https://github.com/i41-eu/i41eu-arch/blob/main/docs/device-setup.md), section 6.
+The release is reproducible: GitHub Actions and the owner's laptop give the same bytes, and so
+did a cloud rebuild with a compiler built from source (up to embody-v0.5.5). The owner's signed
+hashes are in [mj41cz-approved](https://gitlab.com/mj41cz/mj41cz-approved), the cloud rebuilds'
+logs in [mj41cz-rebuilds](https://gitlab.com/mj41cz/mj41cz-rebuilds). To check a release
+yourself (the hashes, the signature, a rebuild): [Verify a release](README.md#verify-a-release);
+the design: [device setup](https://github.com/i41-eu/i41eu-arch/blob/main/docs/device-setup.md),
+section 6.
 
 ## First start
 

@@ -34,6 +34,11 @@ once more on Debian 9 (`Containerfile.stretch`, host GCC 6.3.0, run `build-ubunt
 build stops at picolibc (its meson needs a newer Python than Debian 9's); the compiler programs
 themselves still differ by a few KB, which would need Espressif's exact build image.
 
-The release embody-v0.1.0 (`7a7cfb7`) was checked by CI, the owner's laptop and a cloud rebuild,
-with identical bytes ([mj41cz-approved](https://gitlab.com/mj41cz/mj41cz-approved)).
+The cloud rebuild (this compiler built from source with Guix host tools, on a short-lived
+machine) gave the same bytes as CI and the owner's laptop for each of the ten releases it ran on,
+from embody-v0.1.0 to embody-v0.5.5 (2026-10-07): `stackchan-embody/<release>/cloud` in
+[mj41cz-approved](https://gitlab.com/mj41cz/mj41cz-approved) (embody-v0.5.4 and v0.5.5 in its
+files, the older ones in its history), the signed audit logs of those two in
+[mj41cz-rebuilds](https://gitlab.com/mj41cz/mj41cz-rebuilds) (`runs/20261007-115855`,
+`runs/20261007-200336`). It has not run for a later release yet.
 Details: [device setup design](https://github.com/i41-eu/i41eu-arch/blob/main/docs/device-setup.md), §6.4.

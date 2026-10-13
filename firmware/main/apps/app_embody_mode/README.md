@@ -1,6 +1,6 @@
 # Embody Mode
 
-To set up a robot, see [SETUP.md](SETUP.md).
+To set up a robot, see [SETUP.md](SETUP.md). To check a release before you trust it: [Verify a release](#verify-a-release).
 
 Launcher app (first icon) that lets you control this Stackchan from a browser through [q41eu-raw](https://github.com/i41-eu/q41eu-raw). The protocol is the [device wire protocol](https://github.com/i41-eu/i41eu-arch/blob/main/docs/wire-protocol.md) of [i41eu-arch](https://github.com/i41-eu/i41eu-arch); the q41eu-raw readme lists the robot's commands, and the trust design is [design.md](https://github.com/i41-eu/i41eu-arch/blob/main/docs/implementations/stackchan-trust.md) in i41eu-arch.
 
@@ -107,6 +107,80 @@ The robot's **manager** ([managers.h](managers.h); i41eu-arch docs/manager-chann
 - Nothing from the manager for 70 s: the robot reconnects (backoff up to a minute).
 
 So nobody needs to build firmware for a token: the **official release** (built by CI on `embody-v*` tags with `sdkconfig.defaults.release`; `./container.sh release` runs the same build locally) has no server and no token inside, and Embody Mode shows "Set up: m.i41.eu" until it is set up. Having the robot on the cable is the proof of ownership, like scanning its QR code.
+
+## Verify a release
+
+A [release](https://github.com/i41-eu/i41eu-StackChan/releases) has the five parts, `manifest.json`
+(their offsets and SHA-256, for the setup page), one merged image for 0x0 (`stackchan-embody.bin`)
+and `SHA256SUMS` of these seven files. GitHub Actions builds it from the tag
+(`.github/workflows/embody-firmware.yml` runs `./container.sh release`). The owner then rebuilds
+the tag on their own computer and, when the bytes are the same, signs that `SHA256SUMS` with
+their SSH key (`ssh-keygen -Y sign`, namespace `stackchan-embody`). The signature, a timestamp
+of it and the owner's public key are in the public repository
+[mj41cz-approved](https://gitlab.com/mj41cz/mj41cz-approved), not on the release; the same key is
+on the owner's GitHub account, [github.com/mj41.keys](https://github.com/mj41.keys).
+
+You need `curl`, `sha256sum` and OpenSSH's `ssh-keygen` (8.1 or newer); `openssl` for the
+timestamp; `git` and podman or docker for the rebuild.
+
+```bash
+tag=embody-v0.6.0    # the release to check
+mkdir "$tag" && cd "$tag"
+
+# 1. The files are the ones SHA256SUMS lists
+rel=https://github.com/i41-eu/i41eu-StackChan/releases/download/$tag
+for f in SHA256SUMS manifest.json stackchan-embody.bin bootloader.bin partition-table.bin \
+         ota_data_initial.bin stack-chan.bin generated_assets.bin; do
+  curl -fsSLO "$rel/$f"
+done
+sha256sum -c SHA256SUMS                 # OK for each file
+
+# 2. The owner signed this SHA256SUMS
+approved=https://gitlab.com/mj41cz/mj41cz-approved/-/raw/main
+curl -fsSLO "$approved/builder-keys/allowed_signers"
+curl -fsSLO "$approved/stackchan-embody/$tag/mj41/SHA256SUMS.sig"
+ssh-keygen -Y verify -f allowed_signers -I mj41 -n stackchan-embody -s SHA256SUMS.sig < SHA256SUMS
+#   Good "stackchan-embody" signature for mj41 with ED25519 key SHA256:DCvDxMfjYORcQfLg3p0OK7jgEok21eqpItVCHPpqnwo
+curl -fsSL https://github.com/mj41.keys | ssh-keygen -lf -     # the same key, from GitHub
+#   256 SHA256:DCvDxMfjYORcQfLg3p0OK7jgEok21eqpItVCHPpqnwo no comment (ED25519)
+
+# 3. When it was signed: DigiCert's timestamp of the signature (RFC 3161)
+curl -fsSLO "$approved/stackchan-embody/$tag/mj41/SHA256SUMS.sig.tsr"
+openssl ts -verify -data SHA256SUMS.sig -in SHA256SUMS.sig.tsr \
+  -CAfile /etc/ssl/certs/ca-certificates.crt      # macOS: /etc/ssl/cert.pem
+openssl ts -reply -in SHA256SUMS.sig.tsr -text | grep '^Time stamp'
+
+# 4. The same bytes from the source: rebuild the tag and compare
+git clone --depth 1 --branch "$tag" https://github.com/i41-eu/i41eu-StackChan.git src
+(cd src/firmware && ./container.sh release "$tag")
+diff src/firmware/build-release/dist/SHA256SUMS SHA256SUMS && echo "the same bytes"
+```
+
+- **Rebuild from the tag,** not from a branch: the version and the commit's time
+  (`SOURCE_DATE_EPOCH`) are in the bytes. `./container.sh release` is what the release workflow
+  runs: ESP-IDF's container pinned by digest, the dependencies pinned by commit or hash, a clean
+  build. On GitHub's runner it takes about ten minutes; the image is a few GB. The rebuilds so far
+  ran on x86-64 Linux; on arm64 the container brings another build of the compiler (not tried
+  yet). How the build is made reproducible, and the compiler rebuilt from source:
+  [device setup §6.4](https://github.com/i41-eu/i41eu-arch/blob/main/docs/device-setup.md).
+- **All at once, with Go:** in a clone of mj41cz-approved,
+  `go run ./tool/cmd/sigs check -online stackchan-embody/$tag` checks every builder's signature
+  and timestamp, that their `SHA256SUMS` are the same, and that the GitHub release publishes the
+  same `SHA256SUMS` (its README).
+- **Who rebuilt which release:** `stackchan-embody/<tag>/` in mj41cz-approved: `ci` (GitHub
+  Actions), `mj41` (the owner, with `SHA256SUMS.sig`), `cloud` (a short-lived cloud machine with a
+  compiler built from source, up to embody-v0.5.5; its signed audit logs:
+  [independent rebuild](https://github.com/i41-eu/i41eu-arch/blob/main/docs/independent-rebuild.md)).
+  Nobody outside the project has added a build yet; how to add yours: mj41cz-approved's README,
+  "Add your own build".
+- **Signed after publishing:** the workflow publishes the release on the tag, and the owner signs
+  afterwards (embody-v0.6.0: published 15:51 UTC, signed 17:18 UTC on 2026-10-12). A release is
+  approved once `mj41/SHA256SUMS.sig` is in mj41cz-approved; before that step 2 fails.
+- **The managers do not check the signature yet:** m.i41.eu and i41eu-manager install the latest
+  release and check each part only against its `manifest.json`, which says the download is whole,
+  not who built it. To install only what you checked, flash `stackchan-embody.bin` yourself
+  (`esptool.py write_flash 0x0 stackchan-embody.bin`, then set the robot up with `i41eu-usb`), or
+  run i41eu-manager with `-firmware-dir` on the checked files.
 
 ## Configuration
 

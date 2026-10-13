@@ -48,7 +48,10 @@ your own programs, a cockpit that drives a TPBot car over BLE). It is part of th
   [HARDWARE](firmware/main/apps/app_embody_mode/HARDWARE.md).
 - **Releases:** a tag `embody-v*` builds and publishes the firmware
   (`.github/workflows/embody-firmware.yml`); the managers install the latest release. Current:
-  embody-v0.6.0.
+  embody-v0.6.0. The owner rebuilds each release to the same bytes and signs its `SHA256SUMS` in
+  [mj41cz-approved](https://gitlab.com/mj41cz/mj41cz-approved); to check one yourself (the
+  hashes, the signature, a rebuild):
+  [Verify a release](firmware/main/apps/app_embody_mode/README.md#verify-a-release).
 - **Upstream:** Embody Mode is meant to be offered to upstream as an official mode (an app of
   the launcher), so its changes are kept apart in a few commits on top of upstream.
 - **License:** MIT, as upstream (M5Stack's copyright kept, [firmware/LICENSE](firmware/LICENSE)).
